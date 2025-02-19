@@ -1,1 +1,11 @@
 /* You can add global styles to this file, and also import other style files */
+@import "gridstack/dist/gridstack.min.css";
+@import "gridstack/dist/gridstack-extra.min.css"; // if you use 2-11 column
+
+.grid-stack {
+  background: #fafad2;
+}
+.grid-stack-item-content {
+  text-align: center;
+  background-color: #18bc9c;
+}
