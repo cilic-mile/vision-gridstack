@@ -1,3 +1,3 @@
-<gridstack [options]="gridOptions" (changeCB)="onChange($event)" (resizeStopCB)="onResizeStop($event)" (resizeCB)="onResize($event)" (droppedCB)="onDropped($event)">
+<gridstack [options]="gridOptions" (changeCB)="onChange($event)" (resizeStopCB)="onResizeStop($event)" (resizeCB)="onResize($event)" (droppedCB)="onDropped($event)" (dragStopCB)="onDragStop($event)">
   <gridstack-item *ngFor="let n of items; trackBy: identify" [options]="n"> Item {{n.id}} </gridstack-item>
 </gridstack>

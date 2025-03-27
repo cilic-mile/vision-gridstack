@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {Component} from '@angular/core';
 import {droppedCB, elementCB, GridstackComponent, GridstackItemComponent, nodesCB} from "gridstack/dist/angular";
 import {
@@ -5,19 +6,60 @@ import {
   GridStackMoveOpts,
   GridStackNode,
   GridStackOptions,
-  GridStackWidget
+  GridStackWidget,
+  Utils
 } from "gridstack";
 import {NgForOf} from "@angular/common";
 
 class CustomEngine extends GridStackEngine {
+  public override findEmptyPosition(node, nodeList = this.nodes, column = this.column, after, maxRow = this.maxRow) {
+    const start = after ? after.y * column + (after.x + after.w) : 0;
+    let found = false;
+
+    // Maximum allowed index based on maxRow constraint
+    const maxIndex = maxRow ? column * maxRow : Number.MAX_SAFE_INTEGER;
+
+    for (let i = start; !found; ++i) {
+      // If we've exceeded the maximum allowed rows, break and return false
+      if (maxRow && i >= maxIndex) {
+        console.log(`Could not find position for node within maxRow=${maxRow} constraint`);
+        return false;
+      }
+
+      const x = i % column;
+      const y = Math.floor(i / column);
+
+      // Skip this position if:
+      // 1. The node would extend beyond the available columns
+      // 2. The node would extend beyond the maxRow
+      if (x + node.w > column || (maxRow && y + node.h > maxRow)) {
+        continue;
+      }
+
+      const box = {x, y, w: node.w, h: node.h};
+
+      // Check if this position collides with any existing node
+      if (!nodeList.find(n => Utils.isIntercepted(box, n))) {
+        if (node.x !== x || node.y !== y) {
+          node._dirty = true;
+        }
+        node.x = x;
+        node.y = y;
+        delete node.autoPosition;
+        found = true;
+      }
+    }
+
+    return found;
+  }
 
   public override moveNode(node: GridStackNode, o: GridStackMoveOpts): boolean {
-    console.log("moveNode", node, o)
+    console.log("moveNode", node, o);
     return super.moveNode(node, o);
   }
 
   public override moveNodeCheck(node: GridStackNode, o: GridStackMoveOpts): boolean {
-    console.log("moveNodeCheck", node, o)
+    console.log("moveNodeCheck", node, o);
     // initial part copied from super.moveNodeCheck()
     //*****************************************************************************
 
@@ -58,9 +100,35 @@ class CustomEngine extends GridStackEngine {
 
     //*******************************************************************************
 
-    if (!canMove){
-      // move node then onResizeStop event remove underlying nodes
-      return this.moveNode(node, o);
+    if (!canMove) {
+      const collidingNodes = node.grid.engine.collideAll(o).filter(n => n.id !== node.id);
+
+      const nodes = [...node.grid?.engine.nodes].filter(n => n.id !== node.id);
+      const clonedNode = {...node, ...o};
+      nodes.push(clonedNode);
+
+      const foundPositionForAll = collidingNodes.map(c => this.findEmptyPosition(c, nodes)).every(value => value);
+      if (o.resizing || foundPositionForAll) {
+        collidingNodes.forEach(collidingNode => {
+          // Skip locked nodes
+          if (collidingNode.locked) return;
+
+          // Try to find empty space for this node
+          const found = this.findEmptyPosition(collidingNode, nodes);
+
+          if (found) {
+            console.log(`Moved node ${collidingNode.id} to (${collidingNode.x},${collidingNode.y})`);
+
+            // Update the widget
+            node.grid.update(collidingNode.el, {
+              x: collidingNode.x,
+              y: collidingNode.y
+            });
+          }
+        });
+        console.log('collidingNodes', collidingNodes);
+        return this.moveNode(node, o);
+      }
     }
 
     return super.moveNodeCheck(node, o);
@@ -77,9 +145,9 @@ class CustomEngine extends GridStackEngine {
 export class AppComponent {
   public gridOptions: GridStackOptions = {margin: 5, column: 4, row: 4, cellHeight: 100, engineClass: CustomEngine}
   public items: GridStackWidget[] = [
-    {x:0, y:0, id:'1'},
-    {x:1, y:0, id:'2'},
-    {x:0, y:1, id:'3'},
+    {x: 0, y: 0, id: '1'},
+    {x: 1, y: 0, id: '2'},
+    {x: 0, y: 1, id: '3'},
   ];
 
   // called whenever items change size/position/etc..
@@ -111,5 +179,10 @@ export class AppComponent {
 
   onDropped(data: droppedCB) {
     // console.log('drop ', data);
+  }
+
+  onDragStop($event: elementCB) {
+    console.log('drag stop ', $event);
+
   }
 }
